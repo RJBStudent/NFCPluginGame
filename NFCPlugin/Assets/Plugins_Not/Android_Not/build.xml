@@ -5,13 +5,13 @@
     <property name="target" value="android-28"/>
     <property name="unity.androidplayer.jarfile" value="C:\Program Files\Unity\Hub\Editor\2019.2.4f1\Editor\Data\PlaybackEngines\AndroidPlayer\Variations\mono\Development\Classes\classes.jar"/>
     <!-- Source directory -->
-    <property name="source.dir" value="C:\Users\richard.bourdelais\NFCPlugin\Assets\Plugins\Android" />
+    <property name="source.dir" value="C:\Users\richard.bourdelais\Desktop\NFCPluginGame\NFCPlugin\Assets\Plugins\Android" />
     <!-- Libraries directory  -->
-    <property name="libs.dir" value="C:\Users\richard.bourdelais\NFCPlugin\Assets\Plugins\Android\libs" />
+    <property name="libs.dir" value="C:\Users\richard.bourdelais\Desktop\NFCPluginGame\NFCPlugin\Assets\Plugins\Android\libs" />
     <!-- Output directory for .class files-->
-    <property name="output.dir" value="C:\Users\richard.bourdelais\NFCPlugin\Assets\Plugins\Android\classes"/>
+    <property name="output.dir" value="C:\Users\richard.bourdelais\Desktop\NFCPluginGame\NFCPlugin\Assets\Plugins\Android\classes"/>
     <!-- Name of the jar to be created -->
-    <property name="output.jarfile" value="C:\Users\richard.bourdelais\NFCPlugin\Assets\Plugins\Android\NFCPluginTutorial.jar"/>
+    <property name="output.jarfile" value="C:\Users\richard.bourdelais\Desktop\NFCPluginGame\NFCPlugin\Assets\Plugins\Android\NFCPluginTutorial.jar"/>
       <!-- Creates the output directories if they don't exist yet. -->
     <target name="-dirs"  depends="message">
         <echo>Creating output directory: ${output.dir} </echo>
