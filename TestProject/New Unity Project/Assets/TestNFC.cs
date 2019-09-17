@@ -14,6 +14,7 @@ public class TestNFC : MonoBehaviour
 
     private AndroidJavaObject mActivity;
     private AndroidJavaObject mIntent;
+    private AndroidJavaObject mNfcA;
     private string sAction;
 
 
@@ -32,6 +33,9 @@ public class TestNFC : MonoBehaviour
                 {
                     // Create new NFC Android object
                     mActivity = new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity");
+
+                    mNfcA = new AndroidJavaObject("android.nfc.tech.NfcA");
+
                     mIntent = mActivity.Call<AndroidJavaObject>("getIntent");
                     sAction = mIntent.Call<String>("getAction");
                     if (sAction == "android.nfc.action.NDEF_DISCOVERED")
@@ -49,6 +53,36 @@ public class TestNFC : MonoBehaviour
                             string text = System.Convert.ToBase64String(payLoad);
                             tag_output_text.text = text;
                             tagID = text;
+
+                            string[] techList = mNdefMessage.Call<string[]>("getTechList");
+
+                            //AndroidJavaObject tech = mIntent.Call<AndroidJavaObject>("getParcelableExtra", "android.nfc.tech.NfcA");
+                            //Debug.Log(tech);
+
+                            //Testing set data
+                            try
+                            {
+                                foreach(string textOut in techList)
+                                {
+                                    Debug.Log(textOut);
+                                    AndroidJavaObject tech = mNfcA.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                    tech.Call("connect");
+                                    /*
+                                    if(tech.Call<Boolean>("isConnected"))
+                                    {
+                                        Debug.Log("CONNECTED!!!");
+                                    }
+                                    else
+                                    {
+                                        Debug.Log("oof nope");
+                                    }*/
+                                }
+
+                            }
+                            catch(Exception ex)
+                            {
+                                Debug.LogException(ex);
+                            }
                         }
                         else
                         {
