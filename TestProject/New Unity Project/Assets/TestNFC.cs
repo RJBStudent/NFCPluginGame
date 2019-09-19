@@ -15,12 +15,29 @@ public class TestNFC : MonoBehaviour
     private AndroidJavaObject mActivity;
     private AndroidJavaObject mIntent;
     private AndroidJavaObject mNfcA;
+    private AndroidJavaObject mMifareUltraLight;
+    private AndroidJavaObject techNfcA;
+    private AndroidJavaObject techMifareUltraLight;
     private string sAction;
 
+    [SerializeField]
+    String writeData = "";
+
+    [SerializeField]
+    Text readableData;
+
+    bool isReadToggled = false;
+
+    byte[] dataToWrite;
+
+    byte[] dataRead;
 
     void Start()
     {
         tag_output_text.text = "No tag...";
+
+        dataToWrite = System.Convert.FromBase64String(writeData);
+        Debug.Log("String: " + writeData + " ByteData: " + System.Convert.ToBase64String( dataToWrite));
     }
 
     void Update()
@@ -35,6 +52,7 @@ public class TestNFC : MonoBehaviour
                     mActivity = new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity");
 
                     mNfcA = new AndroidJavaObject("android.nfc.tech.NfcA");
+                    mMifareUltraLight = new AndroidJavaObject("android.nfc.tech.MifareUltralight");
 
                     mIntent = mActivity.Call<AndroidJavaObject>("getIntent");
                     sAction = mIntent.Call<String>("getAction");
@@ -47,6 +65,7 @@ public class TestNFC : MonoBehaviour
                         Debug.Log("TAG DISCOVERED");
                         // Get ID of tag
                         AndroidJavaObject mNdefMessage = mIntent.Call<AndroidJavaObject>("getParcelableExtra", "android.nfc.extra.TAG");
+                        
                         if (mNdefMessage != null)
                         {
                             byte[] payLoad = mNdefMessage.Call<byte[]>("getId");
@@ -64,9 +83,21 @@ public class TestNFC : MonoBehaviour
                             {
                                 foreach(string textOut in techList)
                                 {
-                                    Debug.Log(textOut);
-                                    AndroidJavaObject tech = mNfcA.CallStatic<AndroidJavaObject>("get", mNdefMessage);
-                                    tech.Call("connect");
+                                    
+                                    if (textOut == "android.nfc.tech.NfcA")
+                                    {
+                                        techNfcA = mNfcA.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                        Debug.Log(textOut);
+                                    }
+                                    
+                                    if(textOut == "android.nfc.tech.MifareUltralight")
+                                    {
+                                        techMifareUltraLight = mMifareUltraLight.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                        Debug.Log(textOut);
+                                    }
+
+                                    //tech.Call("connect");
+
                                     /*
                                     if(tech.Call<Boolean>("isConnected"))
                                     {
@@ -108,5 +139,50 @@ public class TestNFC : MonoBehaviour
                 }
             }
         }
+
+        WriteTest();
+
     }
+
+
+    void WriteTest()
+    {
+        try
+        {
+            if(techMifareUltraLight != null)
+            {
+                techMifareUltraLight.Call("connect");
+
+               if( techMifareUltraLight.Call<Boolean>("isConnected"))
+               {
+
+
+                    if (!isReadToggled)
+                    {
+                        techMifareUltraLight.Call("writePage", 0, dataToWrite);
+                    }
+                    else
+                    {
+                       dataRead = techMifareUltraLight.Call<byte[]>("readPage", 0);
+                    }
+
+                }
+                techMifareUltraLight.Call("close");
+            }
+
+            readableData.text = "No Data....";
+
+            readableData.text = System.Convert.ToBase64String(dataRead);
+
+        }catch(Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+    }
+
+    public void OnToggle(bool data)
+    {
+        isReadToggled = data;
+    }
+
 }
