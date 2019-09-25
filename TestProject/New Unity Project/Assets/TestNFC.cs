@@ -27,7 +27,7 @@ public class TestNFC : MonoBehaviour
     private AndroidJavaObject techMifareUltraLight;
     private AndroidJavaObject techNdef;
     private string sAction;
-    
+
     private AndroidJavaObject ourNdefMessage;
     private AndroidJavaObject firstNdefRecord;
     private AndroidJavaObject[] followingNdefRecords;
@@ -52,7 +52,7 @@ public class TestNFC : MonoBehaviour
     [SerializeField] Button findNewButton;
     bool lookForNFC = false;
 
-    
+
 
     TNF TNF_ABSOLUTE_URI = new TNF(0x00000003);
     TNF TNF_EMPTY = new TNF(0x00000000);
@@ -69,25 +69,58 @@ public class TestNFC : MonoBehaviour
         tag_output_text.text = "No tag...";
 
         findNewButton.interactable = true;
-        
+
 
         dataToWrite = System.Convert.FromBase64String(writeData);
+        
+
         Debug.Log("String: " + writeData + " ByteData: " + dataToWrite);
 
         NdefRecordClass = new AndroidJavaClass("android.nfc.NdefRecord");
 
-        firstNdefRecord = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_WELL_KNOWN"), NdefRecordClass.GetStatic<Byte[]>("RTD_TEXT"), new Byte[] { }, dataToWrite);
+        firstNdefRecord = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_EMPTY"), new Byte[] { }, new Byte[] { }, new Byte[] { });
+
+
+
         followingNdefRecords = new AndroidJavaObject[1];
-        followingNdefRecords[0] = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_WELL_KNOWN"), NdefRecordClass.GetStatic<Byte[]>("RTD_TEXT"), new Byte[] { } ,dataToWrite);
+        
+        followingNdefRecords[0] = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_WELL_KNOWN"), NdefRecordClass.GetStatic<Byte[]>("RTD_TEXT"), new Byte[] { }, dataToWrite);
         //followingNdefRecords[0] = firstNdefRecord;
 
+        try
+        {
+            //AndroidJavaObject javaArray = javaArrayFromCS(followingNdefRecords);
 
-        ourNdefMessage = new AndroidJavaObject("android.nfc.NdefMessage", firstNdefRecord.GetRawObject(), followingNdefRecords[0].GetRawObject());
-        Debug.Log("NDEF DATA: " + ourNdefMessage.Call<AndroidJavaObject[]>("getRecords")[0].Call<Byte[]>("getPayload"));
+            
 
+            ourNdefMessage = new AndroidJavaObject("android.nfc.NdefMessage", firstNdefRecord, followingNdefRecords);
+
+            Debug.Log("NDEF DATA: " + ourNdefMessage.Call<AndroidJavaObject[]>("getRecords")[1].Call<Byte[]>("getPayload"));
+        }
+        catch(Exception e)
+        {
+            Debug.LogException(e);
+        }
     }
 
-    void Update()
+    private AndroidJavaObject javaArrayFromCS(AndroidJavaObject[] values)
+    {
+        
+        AndroidJavaClass arrayClass = new AndroidJavaClass("java.lang.reflect.Array");
+        Debug.Log("Creating Array...");
+        AndroidJavaObject arrayObject = arrayClass.CallStatic<AndroidJavaObject>("newInstance", new AndroidJavaClass("android.nfc.NdefRecord"), values.Length);
+        for (int i = 0; i < values.Length; i++)
+        {
+            Debug.Log("Setting values at :" + i);
+            arrayClass.CallStatic("set", arrayObject, i, values[i]);
+        }
+        Debug.Log("Created...");
+        
+        return arrayObject;
+    }
+
+
+void Update()
     {
         if (!lookForNFC)
             return;
@@ -247,13 +280,18 @@ public class TestNFC : MonoBehaviour
                     }
                     else
                     {
-                         AndroidJavaObject newNdefMessage = techNdef.Call<AndroidJavaObject>("getNdefMMessage");
-                        dataRead = newNdefMessage.Call<Byte[]>("toByteArray");
+                         AndroidJavaObject newNdefMessage = techNdef.Call<AndroidJavaObject>("getNdefMessage");
+                        AndroidJavaObject[] newRecords = newNdefMessage.Call<AndroidJavaObject[]>("getRecords");
+                        //dataRead = newNdefMessage.Call<Byte[]>("toByteArray");
+
+                        dataRead = newRecords[1].Call<Byte[]>("getPayload");
+
                         Debug.Log("Read");
                         readableData.text = System.Convert.ToBase64String(dataRead);
                         readNewData = true;
 
                     }
+                    techNdef.Call("close");
                 }
                 catch (Exception econnect)
                 {
@@ -270,7 +308,10 @@ public class TestNFC : MonoBehaviour
                 {
                     try
                     {
-                        techNdef.Call("close");
+                        if (techNdef != null)
+                        {
+                            techNdef.Call("close");
+                        }
                     }
                     catch (Exception eclose)
                     {
