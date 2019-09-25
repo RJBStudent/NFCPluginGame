@@ -5,6 +5,12 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 
+class TNF
+{
+    public TNF(short c) { constantVal = c; }
+    public short constantVal;
+}
+
 public class TestNFC : MonoBehaviour
 {
 
@@ -16,9 +22,17 @@ public class TestNFC : MonoBehaviour
     private AndroidJavaObject mIntent;
     private AndroidJavaObject mNfcA;
     private AndroidJavaObject mMifareUltraLight;
+    private AndroidJavaObject mNdef;
     private AndroidJavaObject techNfcA;
     private AndroidJavaObject techMifareUltraLight;
+    private AndroidJavaObject techNdef;
     private string sAction;
+    
+    private AndroidJavaObject ourNdefMessage;
+    private AndroidJavaObject firstNdefRecord;
+    private AndroidJavaObject[] followingNdefRecords;
+    private AndroidJavaClass NdefRecordClass;
+
 
     [SerializeField]
     String writeData = "";
@@ -29,26 +43,55 @@ public class TestNFC : MonoBehaviour
     [SerializeField] Toggle toggleReadWrite;
     bool isReadToggled = false;
 
-    [SerializeField] Toggle toggleReadTag;
-    bool shouldReadTag = false;
 
     Byte[] dataToWrite;
     bool readNewData = false;
 
     Byte[] dataRead;
 
+    [SerializeField] Button findNewButton;
+    bool lookForNFC = false;
+
+    
+
+    TNF TNF_ABSOLUTE_URI = new TNF(0x00000003);
+    TNF TNF_EMPTY = new TNF(0x00000000);
+    TNF TNF_EXTERNAL_TYPE = new TNF(0x00000004);
+    TNF TNF_MIME_MEDIA = new TNF(0x00000002);
+    TNF TNF_UNCHANGED = new TNF(0x00000006);
+    TNF TNF_UNKNOWN = new TNF(0x00000005);
+    TNF TNF_WELL_KNOWN = new TNF(0x00000001);
+
+    Byte[] languageBytes;
+
     void Start()
     {
         tag_output_text.text = "No tag...";
 
-            
+        findNewButton.interactable = true;
+        
 
         dataToWrite = System.Convert.FromBase64String(writeData);
-        Debug.Log("String: " + writeData + " ByteData: " + System.Convert.ToBase64String(dataToWrite));
+        Debug.Log("String: " + writeData + " ByteData: " + dataToWrite);
+
+        NdefRecordClass = new AndroidJavaClass("android.nfc.NdefRecord");
+
+        firstNdefRecord = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_WELL_KNOWN"), NdefRecordClass.GetStatic<Byte[]>("RTD_TEXT"), new Byte[] { }, dataToWrite);
+        followingNdefRecords = new AndroidJavaObject[1];
+        followingNdefRecords[0] = new AndroidJavaObject("android.nfc.NdefRecord", NdefRecordClass.GetStatic<short>("TNF_WELL_KNOWN"), NdefRecordClass.GetStatic<Byte[]>("RTD_TEXT"), new Byte[] { } ,dataToWrite);
+        //followingNdefRecords[0] = firstNdefRecord;
+
+
+        ourNdefMessage = new AndroidJavaObject("android.nfc.NdefMessage", firstNdefRecord.GetRawObject(), followingNdefRecords[0].GetRawObject());
+        Debug.Log("NDEF DATA: " + ourNdefMessage.Call<AndroidJavaObject[]>("getRecords")[0].Call<Byte[]>("getPayload"));
+
     }
 
     void Update()
     {
+        if (!lookForNFC)
+            return;
+
         CheckReadNewTag();
 
         if (Application.platform == RuntimePlatform.Android)
@@ -62,6 +105,7 @@ public class TestNFC : MonoBehaviour
 
                     mNfcA = new AndroidJavaObject("android.nfc.tech.NfcA");
                     mMifareUltraLight = new AndroidJavaObject("android.nfc.tech.MifareUltralight");
+                    mNdef = new AndroidJavaObject("android.nfc.tech.Ndef");
 
                     mIntent = mActivity.Call<AndroidJavaObject>("getIntent");
                     sAction = mIntent.Call<String>("getAction");
@@ -74,80 +118,76 @@ public class TestNFC : MonoBehaviour
                         Debug.Log("TAG DISCOVERED");
                         // Get ID of tag
                         AndroidJavaObject mNdefMessage = mIntent.Call<AndroidJavaObject>("getParcelableExtra", "android.nfc.extra.TAG");
-                       if (mNdefMessage != null)
-                       {
-                            if (shouldReadTag)
+                        if (mNdefMessage != null)
+                        {
+
+                            byte[] payLoad = mNdefMessage.Call<byte[]>("getId");
+                            string text = System.Convert.ToBase64String(payLoad);
+                            tag_output_text.text = text;
+                            tagID = text;
+
+                            string[] techList = mNdefMessage.Call<string[]>("getTechList");
+
+                            //AndroidJavaObject tech = mIntent.Call<AndroidJavaObject>("getParcelableExtra", "android.nfc.tech.NfcA");
+                            //Debug.Log(tech);
+
+                            //Testing set data
+                            try
                             {
-
-
-
-                                byte[] payLoad = mNdefMessage.Call<byte[]>("getId");
-                                string text = System.Convert.ToBase64String(payLoad);
-                                tag_output_text.text = text;
-                                tagID = text;
-
-                                string[] techList = mNdefMessage.Call<string[]>("getTechList");
-
-                                //AndroidJavaObject tech = mIntent.Call<AndroidJavaObject>("getParcelableExtra", "android.nfc.tech.NfcA");
-                                //Debug.Log(tech);
-
-                                //Testing set data
-                                try
+                                foreach (string textOut in techList)
                                 {
-                                    foreach (string textOut in techList)
+                                    if (textOut == "android.nfc.tech.NfcA")
                                     {
-
-                                        if (textOut == "android.nfc.tech.NfcA")
-                                        {
-                                            techNfcA = mNfcA.CallStatic<AndroidJavaObject>("get", mNdefMessage);
-                                            Debug.Log(textOut);
-                                        }
-
-                                        if (textOut == "android.nfc.tech.MifareUltralight")
-                                        {
-                                            techMifareUltraLight = mMifareUltraLight.CallStatic<AndroidJavaObject>("get", mNdefMessage);
-                                            Debug.Log(textOut);
-
-                                            techMifareUltraLight.Call("connect");
-                                        }
-
-                                        //tech.Call("connect");
-
-                                        /*
-                                        if(tech.Call<Boolean>("isConnected"))
-                                        {
-                                            Debug.Log("CONNECTED!!!");
-                                        }
-                                        else
-                                        {
-                                            Debug.Log("oof nope");
-                                        }*/
+                                        techNfcA = mNfcA.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                        Debug.Log(textOut);
                                     }
 
+                                    if (textOut == "android.nfc.tech.MifareUltralight")
+                                    {
+                                        techMifareUltraLight = mMifareUltraLight.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                        Debug.Log(textOut);
+
+                                    }
+
+                                    if (textOut == "android.nfc.tech.Ndef")
+                                    {
+                                        techNdef = mNdef.CallStatic<AndroidJavaObject>("get", mNdefMessage);
+                                        Debug.Log(textOut);
+
+                                    }
+
+                                    //tech.Call("connect");
+
+                                    /*
+                                    if(tech.Call<Boolean>("isConnected"))
+                                    {
+                                        Debug.Log("CONNECTED!!!");
+                                    }
+                                    else
+                                    {
+                                        Debug.Log("oof nope");
+                                    }*/
                                 }
-                                catch (Exception ex)
-                                {
-                                    Debug.LogException(ex);
-                                }
+
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                mIntent.Call("removeExtra", "android.nfc.extra.TAG");
-                               // toggleReadTag.isOn = false;
+                                Debug.LogException(ex);
                             }
 
-                           // tagFound = true;
+
                         }
                         else
                         {
-                            tag_output_text.text = "No ID found !";
+                            // tag_output_text.text = "No ID found !";
                             mIntent.Call("removeExtra", "android.nfc.extra.TAG");
-                            
+
                         }
+
                         tagFound = true;
                         return;
                     }
-                      if (sAction == "android.nfc.action.TAG_DISCOVERED")
+                    if (sAction == "android.nfc.action.TAG_DISCOVERED")
                     {
                         Debug.Log("This type of tag is not supported !");
                     }
@@ -159,6 +199,8 @@ public class TestNFC : MonoBehaviour
                 }
                 catch (Exception ex)
                 {
+                    Debug.Log("ERROR at Finding Tag: ");
+
                     string text = ex.Message;
                     tag_output_text.text = text;
                 }
@@ -171,18 +213,10 @@ public class TestNFC : MonoBehaviour
 
     bool CheckReadNewTag()
     {
-        shouldReadTag = toggleReadTag.isOn;
+
 
         isReadToggled = toggleReadWrite.isOn;
-
-        if(shouldReadTag)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return isReadToggled;
     }
 
 
@@ -190,53 +224,112 @@ public class TestNFC : MonoBehaviour
     {
         try
         {
-            if (techMifareUltraLight != null)
-            {
 
-                if (techMifareUltraLight.Call<Boolean>("isConnected"))
+            //Debug.Log(" Looking for connection to tech ");
+            if (techNdef != null)
+            {
+                try
                 {
+                    techNdef.Call("connect");
+                    //if (techMifareUltraLight.Call<Boolean>("isConnected"))
+                    //{
                     Debug.Log("Connected");
-                        
-                        if (!isReadToggled)
-                        {
+
+                    Debug.Log(" Can write is : "+ techNdef.Call<Boolean>("isWritable"));
+
+                    if (!isReadToggled)
+                    {
                         Debug.Log("Write");
-                            //techMifareUltraLight.Call("writePage", 0, dataToWrite);
-                        }
-                        else
-                        {
-                        //  dataRead = techMifareUltraLight.Call<Byte[]>("readPage", 0);
+
+                        techNdef.Call("writeNdefMessage", ourNdefMessage);
+
+                        //  techMifareUltraLight.Call("writePage", 1, dataToWrite);
+                    }
+                    else
+                    {
+                         AndroidJavaObject newNdefMessage = techNdef.Call<AndroidJavaObject>("getNdefMMessage");
+                        dataRead = newNdefMessage.Call<Byte[]>("toByteArray");
                         Debug.Log("Read");
-                        //readableData.text = System.Convert.ToBase64String(dataRead);
+                        readableData.text = System.Convert.ToBase64String(dataRead);
                         readNewData = true;
 
-                        }
-                        
-
-                    techMifareUltraLight.Call("close");
+                    }
+                }
+                catch (Exception econnect)
+                {
+                    Debug.Log("ERROR CONNECTING : ");
+                    Debug.LogException(econnect);
                     mIntent.Call("removeExtra", "android.nfc.extra.TAG");
                     techMifareUltraLight = null;
                     techNfcA = null;
-                   // tagFound = false;
-                    toggleReadTag.isOn = false;
-                    // toggleRead.isOn = false;
+                    techNdef = null;
+                    lookForNFC = false;
+                    findNewButton.interactable = true;
                 }
+                finally
+                {
+                    try
+                    {
+                        techNdef.Call("close");
+                    }
+                    catch (Exception eclose)
+                    {
+                        Debug.Log("ERROR CLOSING: ");
+                        Debug.LogException(eclose);
+                        mIntent.Call("removeExtra", "android.nfc.extra.TAG");
+                        techMifareUltraLight = null;
+                        techNfcA = null;
+                        techNdef = null;
+                        lookForNFC = false;
+                        findNewButton.interactable = true;
+                    }
+                    mIntent.Call("removeExtra", "android.nfc.extra.TAG");
+                }
+
+                techMifareUltraLight = null;
+                techNfcA = null;
+                techNdef = null;
+                // toggleRead.isOn = false;
+                findNewButton.interactable = true;
+
+                lookForNFC = false;
+                //}
             }
             else
             {
                 mIntent.Call("removeExtra", "android.nfc.extra.TAG");
                 techMifareUltraLight = null;
                 techNfcA = null;
-                tagFound = false;
+                techNdef = null;
+                lookForNFC = false;
+                findNewButton.interactable = true;
                 //toggleReadTag.isOn = false;
             }
 
         }
         catch (Exception ex)
         {
-            Debug.Log("ERROR: ");
+            Debug.Log("ERROR at read/write : ");
             Debug.LogException(ex);
+            if (techMifareUltraLight != null)
+            {
+                techMifareUltraLight.Call("close");
+            }
+            techMifareUltraLight = null;
+            techNfcA = null;
             mIntent.Call("removeExtra", "android.nfc.extra.TAG");
+
+
+            lookForNFC = false;
+            findNewButton.interactable = true;
         }
     }
 
+
+    public void StartLookingForTag()
+    {
+        lookForNFC = true;
+        findNewButton.interactable = false;
+
+    }
 }
